@@ -10,6 +10,7 @@ typedef struct s_data
 	int fd_in;
 	int fd_out;
 	int pid;
+	int redir;
 } t_data;
 
 int ft_strlen(char *s)
@@ -61,36 +62,27 @@ void handle_cd(char *argv[])
 
 char **skip_cmd(char *argv[])
 {
-	while (*argv && !strcmp(*argv, "|") && !strcmp(*argv, ";"))
+	while (*argv && *argv[0] != '|' && *argv[0] != ';')
 	{
 		argv++;
 	}
 	return argv;
 }
 
-char **run_cmd(t_data *data, char *envp[])
+int check_pipe(t_data *data)
 {
-	data->pid = fork();
-
-	if (data->pid == 0)
+	int i = -1;
+	while (data->argv[++i])
 	{
-		char *args[1000];
-		int i = 0;
-	
-		while (data->argv[i] && !strcmp(data->argv[i], "|") && !strcmp(data->argv[i], ";"))
+		if (data->argv[i][0] == '|')
 		{
-			args[i] = data->argv[i];
-			i++;
+			dprintf(2, "I will redir\n");
+			data->redir = 0;
+			return 0;
 		}
-		args[i] = NULL;
-		execve(args[0], args, envp);
-		write(2, "error: unknown command", ft_strlen("error: unknown command"));
-		exit(1);
 	}
-	else
-	{
-		return (data->argv = skip_cmd(data->argv));
-	}
+	data->redir = 1;
+	return 1;
 }
 
 void redirection(t_data *data)
@@ -111,6 +103,37 @@ void redirection(t_data *data)
 	}
 }
 
+char **run_cmd(t_data *data, char *envp[])
+{
+	int fd[2];
+	if (!check_pipe(data))
+		pipe(fd);
+	data->pid = fork();
+	// if (data->redir == 0)
+	// {
+	// 	dprintf(2, "Entered redirection wtf\n");
+	// 	redirection(data);
+	// }
+	if (data->pid > 0)
+		return (data->argv = skip_cmd(data->argv));
+	else
+	{
+		char *args[1000];
+		int i = 0;
+	
+		while (data->argv[i] && strcmp(data->argv[i], "|") && strcmp(data->argv[i], ";"))
+		{
+			args[i] = data->argv[i];
+			printf("%s\n", data->argv[0]);
+			i++;
+		}
+		args[i] = NULL;
+		execve(args[0], args, envp);
+		write(2, "error: unknown command", ft_strlen("error: unknown command"));
+		exit(1);
+	}
+}
+
 int main(int argc, char *argv[], char *envp[])
 {
 	argv++;
@@ -119,8 +142,9 @@ int main(int argc, char *argv[], char *envp[])
 	else
 	{
 		t_data data;
-		data.fd_in = dup(STDIN_FILENO);
-		data.fd_out = dup(STDOUT_FILENO);
+		// data.fd_in = dup(STDIN_FILENO);
+		// data.fd_out = dup(STDOUT_FILENO);
+		data.redir = -1;
 		data.argv = argv;
 		int i = -1;
 		while (data.argv[++i])
@@ -134,10 +158,15 @@ int main(int argc, char *argv[], char *envp[])
 			}
 			else
 			{
-				argv = run_cmd(&data, envp);
-				if (strcmp(*(data.argv), "|"))
+				data.argv = run_cmd(&data, envp);
+				if (!*(data.argv))
+					return 0;
+				if (!strcmp(*(data.argv), "|"))
+				{
 					i++;
-				if (strcmp(*(data.argv), ";"))
+					data.argv += 1;
+				}
+				if (!strcmp(*(data.argv), ";"))
 				{
 					dup2(STDIN_FILENO, data.fd_in);
 					dup2(STDOUT_FILENO, data.fd_out);
