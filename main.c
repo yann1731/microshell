@@ -76,7 +76,6 @@ int check_pipe(t_data *data)
 	{
 		if (data->argv[i][0] == '|')
 		{
-			dprintf(2, "I will redir\n");
 			data->redir = 0;
 			return 0;
 		}
@@ -85,10 +84,8 @@ int check_pipe(t_data *data)
 	return 1;
 }
 
-void redirection(t_data *data)
+void redirection(t_data *data, int fd[])
 {
-	int fd[2];
-	pipe(fd);
 	if (data->pid > 0)
 	{
 		close(fd[1]);
@@ -109,11 +106,10 @@ char **run_cmd(t_data *data, char *envp[])
 	if (!check_pipe(data))
 		pipe(fd);
 	data->pid = fork();
-	// if (data->redir == 0)
-	// {
-	// 	dprintf(2, "Entered redirection wtf\n");
-	// 	redirection(data);
-	// }
+	if (data->redir == 0)
+	{
+		redirection(data, fd);
+	}
 	if (data->pid > 0)
 		return (data->argv = skip_cmd(data->argv));
 	else
@@ -124,7 +120,6 @@ char **run_cmd(t_data *data, char *envp[])
 		while (data->argv[i] && strcmp(data->argv[i], "|") && strcmp(data->argv[i], ";"))
 		{
 			args[i] = data->argv[i];
-			printf("%s\n", data->argv[0]);
 			i++;
 		}
 		args[i] = NULL;
@@ -142,8 +137,8 @@ int main(int argc, char *argv[], char *envp[])
 	else
 	{
 		t_data data;
-		// data.fd_in = dup(STDIN_FILENO);
-		// data.fd_out = dup(STDOUT_FILENO);
+		data.fd_in = dup(STDIN_FILENO);
+		data.fd_out = dup(STDOUT_FILENO);
 		data.redir = -1;
 		data.argv = argv;
 		int i = -1;
@@ -164,6 +159,7 @@ int main(int argc, char *argv[], char *envp[])
 				if (!strcmp(*(data.argv), "|"))
 				{
 					i++;
+
 					data.argv += 1;
 				}
 				if (!strcmp(*(data.argv), ";"))
