@@ -63,9 +63,7 @@ void handle_cd(char *argv[])
 char **skip_cmd(char *argv[])
 {
 	while (*argv && *argv[0] != '|' && *argv[0] != ';')
-	{
 		argv++;
-	}
 	return argv;
 }
 
@@ -106,7 +104,6 @@ char **run_cmd(t_data *data, char *envp[])
 	if (!check_pipe(data))
 		pipe(fd);
 	data->pid = fork();
-	if (data->redir == 0)
 	{
 		redirection(data, fd);
 	}
@@ -114,16 +111,17 @@ char **run_cmd(t_data *data, char *envp[])
 		return (data->argv = skip_cmd(data->argv));
 	else
 	{
-		char *args[1000];
 		int i = 0;
-	
-		while (data->argv[i] && strcmp(data->argv[i], "|") && strcmp(data->argv[i], ";"))
+		while (data->argv[i])
 		{
-			args[i] = data->argv[i];
+			if (data->argv[i][0] == '|' || data->argv[i][0] == ';')
+			{
+				data->argv[i] = NULL;
+				break ;
+			}
 			i++;
 		}
-		args[i] = NULL;
-		execve(args[0], args, envp);
+		execve(data->argv[0], data->argv, envp);
 		write(2, "error: unknown command", ft_strlen("error: unknown command"));
 		exit(1);
 	}
@@ -141,8 +139,7 @@ int main(int argc, char *argv[], char *envp[])
 		data.fd_out = dup(STDOUT_FILENO);
 		data.redir = -1;
 		data.argv = argv;
-		int i = -1;
-		while (data.argv[++i])
+		while (*data.argv)
 		{
 			if (strcmp(*(data.argv), "cd") == 0)
 			{
@@ -156,19 +153,13 @@ int main(int argc, char *argv[], char *envp[])
 				data.argv = run_cmd(&data, envp);
 				if (!*(data.argv))
 					return 0;
-				if (!strcmp(*(data.argv), "|"))
-				{
-					i++;
-
-					data.argv += 1;
-				}
 				if (!strcmp(*(data.argv), ";"))
 				{
 					dup2(STDIN_FILENO, data.fd_in);
 					dup2(STDOUT_FILENO, data.fd_out);
-					i++;					
 				}
 			}
+			data.argv++;
 		}
 		dup2(STDIN_FILENO, data.fd_in);
 		dup2(STDOUT_FILENO, data.fd_out);
